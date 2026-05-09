@@ -16,7 +16,7 @@
 //==============================================================================
 // [BEGIN_USER_CODE_SECTION]
 
-#if defined (LINUX) || defined (__linux__)
+#if (defined (LINUX) || defined (__linux__)) && !defined (__ANDROID__)
  #define JUCE_DSP_USE_SHARED_FFTW 1
 #endif
 

@@ -1,0 +1,122 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(spectra_synth LANGUAGES CXX C)
+
+# JUCE bootstrap (Java.java) calls System.loadLibrary("juce_jni"),
+# so the native library MUST be named libjuce_jni.so.
+set(LIB_NAME juce_jni)
+
+set(VITAL_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../../..)
+set(JUCE_MODULES ${VITAL_ROOT}/third_party/JUCE/modules)
+set(JUCE_LIB_CODE ${VITAL_ROOT}/standalone/JuceLibraryCode)
+set(VITAL_SRC ${VITAL_ROOT}/src)
+
+# Build date used by the source for the splash/about box.
+string(TIMESTAMP BUILD_DATE_STR "%Y %m %d %H %M")
+
+set(VITAL_DEFINES
+    JUCE_ANDROID=1
+    JUCE_USE_ANDROID_OBOE=1
+    JUCE_USE_OBOE_STABILIZED_CALLBACK=1
+    JUCE_USE_ANDROID_OPENSLES=0
+    JUCE_USE_CURL=0
+    JUCE_LOAD_CURL_SYMBOLS_LAZILY=0
+    JUCE_OPENGL_ES=1
+    OPENGL_ES=1
+    GL_GLEXT_PROTOTYPES=1
+    NO_AUTH=1
+    REQUIRE_AUTH=0
+    JUCE_STANDALONE_APPLICATION=1
+    JUCE_PUSH_NOTIFICATIONS=0
+    JUCE_FIREBASE_ANALYTICS=0
+    JUCE_DISPLAY_SPLASH_SCREEN=0
+    JUCE_DSP_USE_SHARED_FFTW=0
+    JUCE_DSP_USE_STATIC_FFTW=0
+    JUCER_ANDROIDSTUDIO_SPECTRA_1=1
+    JUCE_APP_VERSION=0.1.0
+    JUCE_APP_VERSION_HEX=0x100
+    JUCE_USE_DARK_SPLASH_SCREEN=1
+    "BUILD_DATE=\"${BUILD_DATE_STR}\""
+)
+
+set(VITAL_INCLUDES
+    ${JUCE_LIB_CODE}
+    ${JUCE_MODULES}
+    ${VITAL_SRC}/common
+    ${VITAL_SRC}/common/wavetable
+    ${VITAL_SRC}/interface/editor_components
+    ${VITAL_SRC}/interface/editor_sections
+    ${VITAL_SRC}/interface/look_and_feel
+    ${VITAL_SRC}/interface/wavetable
+    ${VITAL_SRC}/interface/wavetable/editors
+    ${VITAL_SRC}/interface/wavetable/overlays
+    ${VITAL_SRC}/standalone
+    ${VITAL_SRC}/synthesis/synth_engine
+    ${VITAL_SRC}/synthesis/effects
+    ${VITAL_SRC}/synthesis/filters
+    ${VITAL_SRC}/synthesis/framework
+    ${VITAL_SRC}/synthesis/lookups
+    ${VITAL_SRC}/synthesis/modulators
+    ${VITAL_SRC}/synthesis/modules
+    ${VITAL_SRC}/synthesis/producers
+    ${VITAL_SRC}/synthesis/utilities
+    ${VITAL_ROOT}/third_party
+)
+
+# Vital uses unity-build cpp aggregates; reuse them.
+set(VITAL_UNITY_SOURCES
+    ${VITAL_SRC}/unity_build/common.cpp
+    ${VITAL_SRC}/unity_build/synthesis.cpp
+    ${VITAL_SRC}/unity_build/interface_editor_components.cpp
+    ${VITAL_SRC}/unity_build/interface_editor_sections.cpp
+    ${VITAL_SRC}/unity_build/interface_editor_sections2.cpp
+    ${VITAL_SRC}/unity_build/interface_look_and_feel.cpp
+    ${VITAL_SRC}/unity_build/interface_wavetable.cpp
+    ${VITAL_SRC}/unity_build/standalone.cpp
+)
+
+# JUCE module unity-includes (only the .cpp variants, not .mm).
+set(JUCE_UNITY_SOURCES
+    ${JUCE_LIB_CODE}/include_juce_audio_basics.cpp
+    ${JUCE_LIB_CODE}/include_juce_audio_devices.cpp
+    ${JUCE_LIB_CODE}/include_juce_audio_formats.cpp
+    ${JUCE_LIB_CODE}/include_juce_audio_processors.cpp
+    ${JUCE_LIB_CODE}/include_juce_audio_utils.cpp
+    ${JUCE_LIB_CODE}/include_juce_core.cpp
+    ${JUCE_LIB_CODE}/include_juce_data_structures.cpp
+    ${JUCE_LIB_CODE}/include_juce_dsp.cpp
+    ${JUCE_LIB_CODE}/include_juce_events.cpp
+    ${JUCE_LIB_CODE}/include_juce_graphics.cpp
+    ${JUCE_LIB_CODE}/include_juce_gui_basics.cpp
+    ${JUCE_LIB_CODE}/include_juce_gui_extra.cpp
+    ${JUCE_LIB_CODE}/include_juce_opengl.cpp
+    ${JUCE_LIB_CODE}/BinaryData.cpp
+)
+
+add_library(${LIB_NAME} SHARED
+    ${VITAL_UNITY_SOURCES}
+    ${JUCE_UNITY_SOURCES}
+)
+
+target_include_directories(${LIB_NAME} PRIVATE ${VITAL_INCLUDES})
+target_compile_definitions(${LIB_NAME} PRIVATE ${VITAL_DEFINES})
+
+# Find Android NDK libraries.
+find_library(log-lib log)
+find_library(android-lib android)
+find_library(GLESv3-lib GLESv3)
+find_library(EGL-lib EGL)
+find_library(OpenSLES-lib OpenSLES)
+
+target_link_libraries(${LIB_NAME}
+    ${log-lib}
+    ${android-lib}
+    ${GLESv3-lib}
+    ${EGL-lib}
+    ${OpenSLES-lib}
+)
+
+# Strip release builds for smaller APKs.
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    target_compile_options(${LIB_NAME} PRIVATE -Os -flto)
+    target_link_options(${LIB_NAME} PRIVATE -flto -Wl,--gc-sections,--exclude-libs,ALL)
+endif()

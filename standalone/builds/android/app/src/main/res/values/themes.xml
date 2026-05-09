@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Spectra" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/spectra_window_bg</item>
+        <item name="android:colorBackground">@color/spectra_window_bg</item>
+    </style>
+
+    <style name="Theme.Spectra.Fullscreen" parent="Theme.Spectra">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+    </style>
+</resources>
