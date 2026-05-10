@@ -75,7 +75,12 @@ jobs:
           echo "ANDROID_HOME=$ANDROID_HOME"
           ls "$ANDROID_HOME/ndk" || true
 
+      - name: Bootstrap Gradle wrapper
+        working-directory: standalone/builds/android
+        run: gradle wrapper --gradle-version 8.5 --no-daemon
+
       - name: Build debug APK
+        id: build
         working-directory: standalone/builds/android
         env:
           # ANDROID_HOME is exported by setup-android. Use it via shell.
@@ -85,9 +90,46 @@ jobs:
           export ANDROID_NDK_ROOT="$ANDROID_NDK_HOME"
           echo "Using NDK at $ANDROID_NDK_HOME"
           ls "$ANDROID_NDK_HOME" >/dev/null
-          gradle --no-daemon \
-                 assembleDebug \
-                 --stacktrace
+          # Capture stdout+stderr so we can ship the tail back to the PR
+          # comment if it fails (CI logs aren't publicly accessible without auth).
+          set -o pipefail
+          ./gradlew --no-daemon \
+                    assembleDebug \
+                    --stacktrace \
+                    --info 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
+
+      - name: On failure, comment build log tail on the open PR
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set +e
+          LOG="$GITHUB_WORKSPACE/build.log"
+          if [ ! -f "$LOG" ]; then
+            echo "No build log found"
+            exit 0
+          fi
+          # Find the most recent open PR for this branch.
+          PR=$(gh pr list --repo "$REPO" --head "${GITHUB_REF_NAME}" --state open --json number --jq '.[0].number')
+          if [ -z "$PR" ] || [ "$PR" = "null" ]; then
+            echo "No open PR found for branch ${GITHUB_REF_NAME}"
+            exit 0
+          fi
+          echo "Posting failure tail to PR #$PR"
+          {
+            echo "### CI build failed @ \`${SHA::8}\`"
+            echo ""
+            echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo ""
+            echo "Last 400 lines of \`gradle assembleDebug --info\`:"
+            echo ""
+            echo '```'
+            tail -n 400 "$LOG" | sed 's/```/`\`\`/g'
+            echo '```'
+          } > /tmp/comment.md
+          gh pr comment "$PR" --repo "$REPO" --body-file /tmp/comment.md
 
       - name: Locate APK
         id: apk
