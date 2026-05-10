@@ -64,14 +64,17 @@ jobs:
             "cmake;3.22.1" \
             "ndk;26.1.10909125"
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.5'
+      - name: Install Gradle 8.5 manually
+        run: |
+          set -euo pipefail
+          GRADLE_VER=8.5
+          curl -sSL "https://services.gradle.org/distributions/gradle-${GRADLE_VER}-bin.zip" -o /tmp/gradle.zip
+          sudo unzip -q /tmp/gradle.zip -d /opt
+          echo "/opt/gradle-${GRADLE_VER}/bin" >> "$GITHUB_PATH"
 
       - name: Show toolchain versions
         run: |
-          gradle --version
+          /opt/gradle-8.5/bin/gradle --version
           echo "ANDROID_HOME=$ANDROID_HOME"
           ls "$ANDROID_HOME/ndk" || true
 
@@ -104,32 +107,43 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
+          BRANCH: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set +e
           LOG="$GITHUB_WORKSPACE/build.log"
-          if [ ! -f "$LOG" ]; then
-            echo "No build log found"
-            exit 0
+          # Fall back to the *unified* log if the build step never ran.
+          if [ ! -f "$LOG" ] || [ ! -s "$LOG" ]; then
+            echo "No build log; will post a no-log notice."
+            echo "(no build.log was produced — failure was before the build step)" > "$LOG"
           fi
-          # Find the most recent open PR for this branch.
-          PR=$(gh pr list --repo "$REPO" --head "${GITHUB_REF_NAME}" --state open --json number --jq '.[0].number')
+          # Find PR by branch via the search API; works for any push.
+          PR=$(gh api "repos/$REPO/pulls?head=${REPO%%/*}:${BRANCH}&state=open" --jq '.[0].number' 2>/dev/null)
           if [ -z "$PR" ] || [ "$PR" = "null" ]; then
-            echo "No open PR found for branch ${GITHUB_REF_NAME}"
+            # Fallback: scan all open PRs and match by head ref.
+            PR=$(gh api "repos/$REPO/pulls?state=open" --jq ".[] | select(.head.ref == \"$BRANCH\") | .number" | head -1)
+          fi
+          if [ -z "$PR" ] || [ "$PR" = "null" ]; then
+            echo "No open PR found for branch $BRANCH; nothing to comment."
             exit 0
           fi
           echo "Posting failure tail to PR #$PR"
           {
-            echo "### CI build failed @ \`${SHA::8}\`"
+            echo "### CI build failed @ \`${SHA:0:8}\`"
             echo ""
-            echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo "Run: $RUN_URL"
             echo ""
             echo "Last 400 lines of \`gradle assembleDebug --info\`:"
+            echo ""
+            echo '<details><summary>build log tail</summary>'
             echo ""
             echo '```'
             tail -n 400 "$LOG" | sed 's/```/`\`\`/g'
             echo '```'
+            echo ""
+            echo '</details>'
           } > /tmp/comment.md
-          gh pr comment "$PR" --repo "$REPO" --body-file /tmp/comment.md
+          gh pr comment "$PR" --repo "$REPO" --body-file /tmp/comment.md || echo "gh pr comment failed (continuing)"
 
       - name: Locate APK
         id: apk
