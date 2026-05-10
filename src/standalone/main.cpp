@@ -113,6 +113,16 @@ class SynthApplication : public JUCEApplication {
             editor_->animate(true);
             setContentOwned(editor_, true);
 
+#if JUCE_ANDROID
+            // On Android, the Activity owns the screen — don't fight it with
+            // a fixed aspect ratio or window centering. Let the editor fill
+            // whatever the Activity gave us.
+            constrainer_.setMinimumSize(vital::kMinWindowWidth / 4,
+                                        vital::kMinWindowHeight / 4);
+            setConstrainer(&constrainer_);
+            setVisible(visible);
+            triggerAsyncUpdate();
+#else
             constrainer_.setMinimumSize(vital::kMinWindowWidth, vital::kMinWindowHeight);
             constrainer_.setBorder(getPeer()->getFrameSize());
             float ratio = (1.0f * vital::kDefaultWindowWidth) / vital::kDefaultWindowHeight;
@@ -123,6 +133,7 @@ class SynthApplication : public JUCEApplication {
             centreWithSize(getWidth(), getHeight());
             setVisible(visible);
             triggerAsyncUpdate();
+#endif
           }
           else
             editor_->animate(false);
