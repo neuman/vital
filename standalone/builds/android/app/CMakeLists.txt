@@ -100,6 +100,11 @@ add_library(${LIB_NAME} SHARED
 target_include_directories(${LIB_NAME} PRIVATE ${VITAL_INCLUDES})
 target_compile_definitions(${LIB_NAME} PRIVATE ${VITAL_DEFINES})
 
+# Build Oboe (bundled inside JUCE) as a static library and link it in.
+set(OBOE_DIR ${JUCE_MODULES}/juce_audio_devices/native/oboe)
+add_subdirectory(${OBOE_DIR} oboe-build EXCLUDE_FROM_ALL)
+target_include_directories(${LIB_NAME} PRIVATE ${OBOE_DIR}/include)
+
 # Find Android NDK libraries.
 find_library(log-lib log)
 find_library(android-lib android)
@@ -108,6 +113,7 @@ find_library(EGL-lib EGL)
 find_library(OpenSLES-lib OpenSLES)
 
 target_link_libraries(${LIB_NAME}
+    oboe
     ${log-lib}
     ${android-lib}
     ${GLESv3-lib}
