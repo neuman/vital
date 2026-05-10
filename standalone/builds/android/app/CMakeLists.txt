@@ -10,9 +10,6 @@ set(JUCE_MODULES ${VITAL_ROOT}/third_party/JUCE/modules)
 set(JUCE_LIB_CODE ${VITAL_ROOT}/standalone/JuceLibraryCode)
 set(VITAL_SRC ${VITAL_ROOT}/src)
 
-# Build date used by the source for the splash/about box.
-string(TIMESTAMP BUILD_DATE_STR "%Y %m %d %H %M")
-
 set(VITAL_DEFINES
     JUCE_ANDROID=1
     JUCE_USE_ANDROID_OBOE=1
@@ -35,8 +32,11 @@ set(VITAL_DEFINES
     JUCE_APP_VERSION=0.1.0
     JUCE_APP_VERSION_HEX=0x100
     JUCE_USE_DARK_SPLASH_SCREEN=1
-    "BUILD_DATE=\"${BUILD_DATE_STR}\""
 )
+# BUILD_DATE intentionally undefined here; getBuildTime() falls back to
+# JUCE's compilation date when the macro is not 5 space-separated tokens.
+# (CMake's target_compile_definitions can't pass a value with embedded
+# spaces cleanly without losing it through later list expansions.)
 
 set(VITAL_INCLUDES
     ${JUCE_LIB_CODE}

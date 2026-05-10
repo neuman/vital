@@ -23,7 +23,9 @@ android {
 
         externalNativeBuild {
             cmake {
-                cppFlags "-std=c++14",
+                cppFlags "-std=c++17",
+                         "-fexceptions",
+                         "-frtti",
                          "-fvisibility=hidden",
                          "-fvisibility-inlines-hidden",
                          "-ffast-math",
@@ -31,10 +33,16 @@ android {
                          "-Wno-deprecated-declarations",
                          "-Wno-deprecated-register",
                          "-Wno-unused-parameter",
+                         "-Wno-unused-variable",
+                         "-Wno-unused-function",
+                         "-Wno-unused-private-field",
+                         "-Wno-unused-but-set-variable",
                          "-Wno-undefined-var-template",
                          "-Wno-inconsistent-missing-override",
                          "-Wno-overloaded-virtual",
-                         "-Wno-reorder-ctor"
+                         "-Wno-reorder-ctor",
+                         "-Wno-format-security",
+                         "-Wno-ignored-qualifiers"
                 arguments "-DANDROID_STL=c++_shared",
                           "-DANDROID_ARM_NEON=TRUE",
                           "-DANDROID_PLATFORM=android-26"
