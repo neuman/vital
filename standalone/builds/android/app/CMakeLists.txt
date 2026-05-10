@@ -12,6 +12,10 @@ set(VITAL_SRC ${VITAL_ROOT}/src)
 
 set(VITAL_DEFINES
     JUCE_ANDROID=1
+    # juce_audio_devices.h silently undef's JUCE_USE_ANDROID_OBOE if
+    # JUCE_ANDROID_API_VERSION < 16. Without this, Oboe.cpp doesn't get
+    # included and juce_createRealtimeAudioThread is undefined at link.
+    JUCE_ANDROID_API_VERSION=26
     JUCE_USE_ANDROID_OBOE=1
     JUCE_USE_OBOE_STABILIZED_CALLBACK=1
     JUCE_USE_ANDROID_OPENSLES=0
