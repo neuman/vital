@@ -62,7 +62,11 @@ android {
                     new File(juceModulesDir, 'juce_gui_basics/native/java/app').absolutePath,
                     new File(juceModulesDir, 'juce_gui_basics/native/javaopt/app').absolutePath,
                     new File(juceModulesDir, 'juce_gui_extra/native/java/app').absolutePath,
-                    new File(juceModulesDir, 'juce_gui_extra/native/javaopt/app').absolutePath,
+                    // Skip juce_gui_extra/native/javaopt/app — it contains
+                    // JuceFirebase{Messaging,InstanceId}Service.java which need
+                    // the Firebase SDK on the classpath. We've set
+                    // JUCE_PUSH_NOTIFICATIONS=0 / JUCE_FIREBASE_ANALYTICS=0,
+                    // so the C++ side never references them.
                     new File(juceModulesDir, 'juce_opengl/native/java/app').absolutePath,
                     new File(juceModulesDir, 'juce_audio_devices/native/java/app').absolutePath,
                 ]
