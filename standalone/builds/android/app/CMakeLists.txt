@@ -94,12 +94,22 @@ set(JUCE_UNITY_SOURCES
     ${JUCE_LIB_CODE}/BinaryData.cpp
 )
 
+# NDK 26 ships cpu-features.h under sources/android/cpufeatures/ instead of
+# the default sysroot include path. JUCE's juce_BasicNativeHeaders.h includes
+# it unconditionally on Android, so we need both the header path and the .c
+# file compiled into our lib.
+set(ANDROID_CPUFEATURES_DIR ${ANDROID_NDK}/sources/android/cpufeatures)
+
 add_library(${LIB_NAME} SHARED
     ${VITAL_UNITY_SOURCES}
     ${JUCE_UNITY_SOURCES}
+    ${ANDROID_CPUFEATURES_DIR}/cpu-features.c
 )
 
-target_include_directories(${LIB_NAME} PRIVATE ${VITAL_INCLUDES})
+target_include_directories(${LIB_NAME} PRIVATE
+    ${VITAL_INCLUDES}
+    ${ANDROID_CPUFEATURES_DIR}
+)
 target_compile_definitions(${LIB_NAME} PRIVATE ${VITAL_DEFINES})
 
 # Build Oboe (bundled inside JUCE) as a static library and link it in.
