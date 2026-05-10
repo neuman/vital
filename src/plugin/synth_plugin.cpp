@@ -210,7 +210,7 @@ void SynthPlugin::setStateInformation(const void* data, int size_in_bytes) {
   }
   catch (const json::exception& e) {
     std::string error = "There was an error open the preset. Preset file is corrupted.";
-    AlertWindow::showNativeDialogBox("Error opening preset", error, false);
+    NativeMessageBox::showMessageBoxAsync(AlertWindow::WarningIcon, "Error opening preset", error);
   }
   pauseProcessing(false);
 

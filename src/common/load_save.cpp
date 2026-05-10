@@ -1740,7 +1740,11 @@ File LoadSave::getDataDirectory() {
       return folder;
   }
 
-#ifdef LINUX
+#if defined(__ANDROID__)
+  // On Android, use the app-private data dir (Context.getFilesDir()).
+  File directory = File::getSpecialLocation(File::userApplicationDataDirectory)
+                       .getChildFile("Spectra");
+#elif defined(LINUX)
   File directory = File(kLinuxUserDataDirectory);
   String xdg_data_home = SystemStats::getEnvironmentVariable ("XDG_DATA_HOME", {});
 

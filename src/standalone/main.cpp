@@ -96,7 +96,7 @@ class SynthApplication : public JUCEApplication {
           if (!Startup::isComputerCompatible()) {
             String error = String(ProjectInfo::projectName) +
                            " requires SSE2, NEON or AVX2 compatible processor. Exiting.";
-            AlertWindow::showNativeDialogBox("Computer not supported", error, false);
+            NativeMessageBox::showMessageBoxAsync(AlertWindow::WarningIcon, "Computer not supported", error);
             quit();
           }
 
@@ -113,6 +113,16 @@ class SynthApplication : public JUCEApplication {
             editor_->animate(true);
             setContentOwned(editor_, true);
 
+#if JUCE_ANDROID
+            // On Android, the Activity owns the screen — don't fight it with
+            // a fixed aspect ratio or window centering. Let the editor fill
+            // whatever the Activity gave us.
+            constrainer_.setMinimumSize(vital::kMinWindowWidth / 4,
+                                        vital::kMinWindowHeight / 4);
+            setConstrainer(&constrainer_);
+            setVisible(visible);
+            triggerAsyncUpdate();
+#else
             constrainer_.setMinimumSize(vital::kMinWindowWidth, vital::kMinWindowHeight);
             constrainer_.setBorder(getPeer()->getFrameSize());
             float ratio = (1.0f * vital::kDefaultWindowWidth) / vital::kDefaultWindowHeight;
@@ -123,6 +133,7 @@ class SynthApplication : public JUCEApplication {
             centreWithSize(getWidth(), getHeight());
             setVisible(visible);
             triggerAsyncUpdate();
+#endif
           }
           else
             editor_->animate(false);
@@ -204,7 +215,7 @@ class SynthApplication : public JUCEApplication {
             std::string error;
             if (!editor_->loadFromFile(choice, error)) {
               error = "There was an error open the preset. " + error;
-              AlertWindow::showNativeDialogBox("Error opening preset", error, false);
+              NativeMessageBox::showMessageBoxAsync(AlertWindow::WarningIcon, "Error opening preset", error);
             }
             else
               editor_->externalPresetLoaded(choice);

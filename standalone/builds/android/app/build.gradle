@@ -1,0 +1,125 @@
+plugins {
+    id 'com.android.application'
+}
+
+def juceModulesDir = file("../../../../third_party/JUCE/modules")
+
+android {
+    namespace 'audio.spectra.synth'
+    compileSdk 34
+    ndkVersion '26.1.10909125'
+
+    defaultConfig {
+        applicationId "audio.spectra.synth"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "0.1.0-android"
+
+        ndk {
+            // Start with arm64 only for fast CI iteration. Add armeabi-v7a, x86_64 later.
+            abiFilters 'arm64-v8a'
+        }
+
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++17",
+                         "-fexceptions",
+                         "-frtti",
+                         "-fvisibility=hidden",
+                         "-fvisibility-inlines-hidden",
+                         "-ffast-math",
+                         "-funroll-loops",
+                         "-Wno-deprecated-declarations",
+                         "-Wno-deprecated-register",
+                         "-Wno-unused-parameter",
+                         "-Wno-unused-variable",
+                         "-Wno-unused-function",
+                         "-Wno-unused-private-field",
+                         "-Wno-unused-but-set-variable",
+                         "-Wno-undefined-var-template",
+                         "-Wno-inconsistent-missing-override",
+                         "-Wno-overloaded-virtual",
+                         "-Wno-reorder-ctor",
+                         "-Wno-format-security",
+                         "-Wno-ignored-qualifiers"
+                arguments "-DANDROID_STL=c++_shared",
+                          "-DANDROID_ARM_NEON=TRUE",
+                          "-DANDROID_PLATFORM=android-26"
+            }
+        }
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile 'src/main/AndroidManifest.xml'
+            java {
+                srcDirs = [
+                    'src/main/java',
+                    new File(juceModulesDir, 'juce_core/native/javacore/app').absolutePath,
+                    new File(juceModulesDir, 'juce_core/native/javacore/init').absolutePath,
+                    new File(juceModulesDir, 'juce_core/native/java/app').absolutePath,
+                    new File(juceModulesDir, 'juce_gui_basics/native/java/app').absolutePath,
+                    new File(juceModulesDir, 'juce_gui_basics/native/javaopt/app').absolutePath,
+                    new File(juceModulesDir, 'juce_gui_extra/native/java/app').absolutePath,
+                    // Skip juce_gui_extra/native/javaopt/app — it contains
+                    // JuceFirebase{Messaging,InstanceId}Service.java which need
+                    // the Firebase SDK on the classpath. We've set
+                    // JUCE_PUSH_NOTIFICATIONS=0 / JUCE_FIREBASE_ANALYTICS=0,
+                    // so the C++ side never references them.
+                    new File(juceModulesDir, 'juce_opengl/native/java/app').absolutePath,
+                    new File(juceModulesDir, 'juce_audio_devices/native/java/app').absolutePath,
+                ]
+            }
+            res.srcDirs = ['src/main/res']
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path "CMakeLists.txt"
+            version "3.22.1"
+        }
+    }
+
+    buildTypes {
+        debug {
+            debuggable true
+            jniDebuggable true
+            // Use -O2 (not 0) for debug too — Vital is too heavy to run unoptimized.
+            externalNativeBuild {
+                cmake {
+                    arguments "-DCMAKE_BUILD_TYPE=RelWithDebInfo"
+                }
+            }
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
+                          'proguard-rules.pro'
+            externalNativeBuild {
+                cmake {
+                    arguments "-DCMAKE_BUILD_TYPE=Release"
+                }
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+        resources {
+            excludes += ['META-INF/LICENSE*', 'META-INF/NOTICE*']
+        }
+    }
+
+    lint {
+        abortOnError false
+    }
+}

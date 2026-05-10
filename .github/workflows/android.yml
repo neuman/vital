@@ -1,0 +1,205 @@
+name: Android APK
+
+on:
+  push:
+    branches:
+      - 'claude/android-vital-port-**'
+      - main
+    paths:
+      - 'src/**'
+      - 'standalone/**'
+      - 'third_party/JUCE/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Free up disk space
+        run: |
+          # Vital + JUCE + NDK toolchains can eat ~20GB during build; the
+          # ubuntu-latest runner has prebaked content we don't need.
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /usr/local/lib/android/sdk/ndk/* || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/local/share/boost || true
+          sudo apt-get clean || true
+          df -h / || true
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: ''
+
+      - name: Install required SDK + NDK packages
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install \
+            "platform-tools" \
+            "platforms;android-34" \
+            "build-tools;34.0.0" \
+            "cmake;3.22.1" \
+            "ndk;26.1.10909125"
+
+      - name: Install Gradle 8.5 manually
+        run: |
+          set -euo pipefail
+          GRADLE_VER=8.5
+          curl -sSL "https://services.gradle.org/distributions/gradle-${GRADLE_VER}-bin.zip" -o /tmp/gradle.zip
+          sudo unzip -q /tmp/gradle.zip -d /opt
+          echo "/opt/gradle-${GRADLE_VER}/bin" >> "$GITHUB_PATH"
+
+      - name: Show toolchain versions
+        run: |
+          /opt/gradle-8.5/bin/gradle --version
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/ndk" || true
+
+      - name: Bootstrap Gradle wrapper
+        working-directory: standalone/builds/android
+        run: gradle wrapper --gradle-version 8.5 --no-daemon
+
+      - name: Build debug APK
+        id: build
+        working-directory: standalone/builds/android
+        env:
+          # ANDROID_HOME is exported by setup-android. Use it via shell.
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx5g"
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/26.1.10909125"
+          export ANDROID_NDK_ROOT="$ANDROID_NDK_HOME"
+          echo "Using NDK at $ANDROID_NDK_HOME"
+          ls "$ANDROID_NDK_HOME" >/dev/null
+          # Capture stdout+stderr so we can ship the tail back to the PR
+          # comment if it fails (CI logs aren't publicly accessible without auth).
+          set -o pipefail
+          ./gradlew --no-daemon \
+                    assembleDebug \
+                    --stacktrace \
+                    --info 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
+
+      - name: On failure, surface log tail (annotations + summary + PR comment)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          BRANCH: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set +e
+          LOG="$GITHUB_WORKSPACE/build.log"
+          if [ ! -f "$LOG" ] || [ ! -s "$LOG" ]; then
+            echo "(no build.log was produced — failure was before the build step)" > "$LOG"
+          fi
+
+          # 1) Step summary — appears in the workflow run page.
+          {
+            echo "## Build failed @ \`${SHA:0:8}\`"
+            echo ""
+            echo "Run: $RUN_URL"
+            echo ""
+            echo "<details><summary>last 400 lines of build log</summary>"
+            echo ""
+            echo '```'
+            tail -n 400 "$LOG"
+            echo '```'
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # 2) Error annotations — ARE accessible via the public annotations
+          # API, even without log access. Strip ::stop-commands:: lines so we
+          # don't accidentally inject GHA directives.
+          tail -n 200 "$LOG" \
+            | grep -v -E '::(stop|set|add|save|warning|error|notice)' \
+            | tail -n 80 \
+            | while IFS= read -r line; do
+                # Replace the colon at column position with %3A so :: doesn't trigger
+                printf '::error::%s\n' "$line"
+              done
+
+          # 3) Best-effort PR comment.
+          PR=$(gh api "repos/$REPO/pulls?state=open" \
+                --jq ".[] | select(.head.ref == \"$BRANCH\") | .number" | head -1)
+          if [ -n "$PR" ] && [ "$PR" != "null" ]; then
+            {
+              echo "### CI build failed @ \`${SHA:0:8}\`"
+              echo ""
+              echo "Run: $RUN_URL"
+              echo ""
+              echo '<details><summary>build log tail</summary>'
+              echo ""
+              echo '```'
+              tail -n 400 "$LOG" | sed 's/```/` ``/g'
+              echo '```'
+              echo '</details>'
+            } > /tmp/comment.md
+            gh pr comment "$PR" --repo "$REPO" --body-file /tmp/comment.md \
+              || echo "PR comment failed (likely permissions); annotations still posted."
+          fi
+
+      - name: Locate APK
+        id: apk
+        run: |
+          APK=$(find standalone/builds/android/app/build/outputs/apk -name "*.apk" | head -1)
+          echo "Found APK: $APK"
+          echo "apk_path=$APK" >> "$GITHUB_OUTPUT"
+          echo "apk_name=$(basename "$APK")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: spectra-debug-apk
+          path: ${{ steps.apk.outputs.apk_path }}
+          if-no-files-found: error
+
+      - name: Publish APK to rolling release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APK_PATH: ${{ steps.apk.outputs.apk_path }}
+        run: |
+          set -euo pipefail
+          TAG="android-latest"
+          TITLE="Spectra Android (rolling debug build)"
+          NOTES=$(cat <<EOF
+          Debug APK built from \`${GITHUB_REF_NAME}\` @ ${GITHUB_SHA::8}.
+          Built ${GITHUB_RUN_NUMBER} on $(date -u +'%Y-%m-%d %H:%M UTC').
+
+          Sideload only — debug-signed, not Play-Store ready.
+          Audio: Oboe. Min SDK 26 (Android 8.0+). ABI: arm64-v8a.
+          EOF
+          )
+
+          # Replace any existing rolling release with the same tag.
+          gh release delete "$TAG" --yes --cleanup-tag || true
+          gh release create "$TAG" "$APK_PATH" \
+            --title "$TITLE" \
+            --notes "$NOTES" \
+            --target "$GITHUB_SHA" \
+            --prerelease

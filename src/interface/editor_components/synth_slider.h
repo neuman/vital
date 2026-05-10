@@ -247,7 +247,14 @@ class SynthSlider : public OpenGlSlider, public TextEditor::Listener {
     static constexpr float kDefaultSensitivity = 1.0f;
 
     static constexpr float kDefaultTextHeightPercentage = 0.7f;
+#if JUCE_ANDROID
+    // Fingers can't drag with the precision of a mouse — stretch the
+    // pixel-distance-per-full-revolution so each parameter takes more
+    // travel and lands more accurately. Tuned for ~6" portrait screens.
+    static constexpr float kDefaultRotaryDragLength = 600.0f;
+#else
     static constexpr float kDefaultRotaryDragLength = 200.0f;
+#endif
     static constexpr float kRotaryModulationControlPercent = 0.26f;
 
     static constexpr float kLinearWidthPercent = 0.26f;
