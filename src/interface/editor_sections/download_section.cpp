@@ -316,7 +316,7 @@ void DownloadSection::triggerInstall() {
   if (!install_location_.exists() || !errors_file.exists() || !errors_file.hasWriteAccess()) {
     MessageManagerLock lock(Thread::getCurrentThread());
     String warning = "Can't create install directory. Select another destination";
-    AlertWindow::showNativeDialogBox("Can't Create Directory", warning, false);
+    NativeMessageBox::showMessageBoxAsync(AlertWindow::WarningIcon, "Can't Create Directory", warning);
     install_button_->setEnabled(true);
     cancel_button_->setEnabled(true);
     return;
@@ -399,7 +399,7 @@ void DownloadSection::chooseInstallFolder() {
     }
     else {
       String warning = "Can't create install directory. Select another destination";
-      AlertWindow::showNativeDialogBox("Invalid Directory", warning, false);
+      NativeMessageBox::showMessageBoxAsync(AlertWindow::WarningIcon, "Invalid Directory", warning);
     }
   }
 }

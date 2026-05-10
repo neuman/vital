@@ -139,7 +139,7 @@ void SynthPresetSelector::newPresetSelected(File preset) {
     resetText();
   else {
     error = "There was an error open the preset. " + error;
-    AlertWindow::showNativeDialogBox("Error opening preset", error, false);
+    NativeMessageBox::showMessageBoxAsync(AlertWindow::WarningIcon, "Error opening preset", error);
   }
 }
 
@@ -294,7 +294,7 @@ void SynthPresetSelector::importPreset() {
   if (!parent->getSynth()->loadFromFile(choice, error)) {
     std::string name = ProjectInfo::projectName;
     error = "There was an error open the preset. " + error;
-    AlertWindow::showNativeDialogBox("Error opening preset", error, false);
+    NativeMessageBox::showMessageBoxAsync(AlertWindow::WarningIcon, "Error opening preset", error);
   }
   else
     parent->externalPresetLoaded(choice);
