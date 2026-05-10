@@ -14,6 +14,8 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
+  issues: write
 
 concurrency:
   group: android-${{ github.ref }}
@@ -101,7 +103,7 @@ jobs:
                     --stacktrace \
                     --info 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
 
-      - name: On failure, comment build log tail on the open PR
+      - name: On failure, surface log tail (annotations + summary + PR comment)
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -112,38 +114,54 @@ jobs:
         run: |
           set +e
           LOG="$GITHUB_WORKSPACE/build.log"
-          # Fall back to the *unified* log if the build step never ran.
           if [ ! -f "$LOG" ] || [ ! -s "$LOG" ]; then
-            echo "No build log; will post a no-log notice."
             echo "(no build.log was produced — failure was before the build step)" > "$LOG"
           fi
-          # Find PR by branch via the search API; works for any push.
-          PR=$(gh api "repos/$REPO/pulls?head=${REPO%%/*}:${BRANCH}&state=open" --jq '.[0].number' 2>/dev/null)
-          if [ -z "$PR" ] || [ "$PR" = "null" ]; then
-            # Fallback: scan all open PRs and match by head ref.
-            PR=$(gh api "repos/$REPO/pulls?state=open" --jq ".[] | select(.head.ref == \"$BRANCH\") | .number" | head -1)
-          fi
-          if [ -z "$PR" ] || [ "$PR" = "null" ]; then
-            echo "No open PR found for branch $BRANCH; nothing to comment."
-            exit 0
-          fi
-          echo "Posting failure tail to PR #$PR"
+
+          # 1) Step summary — appears in the workflow run page.
           {
-            echo "### CI build failed @ \`${SHA:0:8}\`"
+            echo "## Build failed @ \`${SHA:0:8}\`"
             echo ""
             echo "Run: $RUN_URL"
             echo ""
-            echo "Last 400 lines of \`gradle assembleDebug --info\`:"
-            echo ""
-            echo '<details><summary>build log tail</summary>'
+            echo "<details><summary>last 400 lines of build log</summary>"
             echo ""
             echo '```'
-            tail -n 400 "$LOG" | sed 's/```/`\`\`/g'
+            tail -n 400 "$LOG"
             echo '```'
-            echo ""
-            echo '</details>'
-          } > /tmp/comment.md
-          gh pr comment "$PR" --repo "$REPO" --body-file /tmp/comment.md || echo "gh pr comment failed (continuing)"
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # 2) Error annotations — ARE accessible via the public annotations
+          # API, even without log access. Strip ::stop-commands:: lines so we
+          # don't accidentally inject GHA directives.
+          tail -n 200 "$LOG" \
+            | grep -v -E '::(stop|set|add|save|warning|error|notice)' \
+            | tail -n 80 \
+            | while IFS= read -r line; do
+                # Replace the colon at column position with %3A so :: doesn't trigger
+                printf '::error::%s\n' "$line"
+              done
+
+          # 3) Best-effort PR comment.
+          PR=$(gh api "repos/$REPO/pulls?state=open" \
+                --jq ".[] | select(.head.ref == \"$BRANCH\") | .number" | head -1)
+          if [ -n "$PR" ] && [ "$PR" != "null" ]; then
+            {
+              echo "### CI build failed @ \`${SHA:0:8}\`"
+              echo ""
+              echo "Run: $RUN_URL"
+              echo ""
+              echo '<details><summary>build log tail</summary>'
+              echo ""
+              echo '```'
+              tail -n 400 "$LOG" | sed 's/```/` ``/g'
+              echo '```'
+              echo '</details>'
+            } > /tmp/comment.md
+            gh pr comment "$PR" --repo "$REPO" --body-file /tmp/comment.md \
+              || echo "PR comment failed (likely permissions); annotations still posted."
+          fi
 
       - name: Locate APK
         id: apk
