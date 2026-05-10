@@ -101,8 +101,13 @@ target_include_directories(${LIB_NAME} PRIVATE ${VITAL_INCLUDES})
 target_compile_definitions(${LIB_NAME} PRIVATE ${VITAL_DEFINES})
 
 # Build Oboe (bundled inside JUCE) as a static library and link it in.
+# Force STATIC so we don't ship a separate liboboe.so; Oboe's own CMakeLists
+# uses an unspecified add_library() that follows BUILD_SHARED_LIBS.
 set(OBOE_DIR ${JUCE_MODULES}/juce_audio_devices/native/oboe)
+set(BUILD_SHARED_LIBS_SAVED ${BUILD_SHARED_LIBS})
+set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "Force Oboe to build static")
 add_subdirectory(${OBOE_DIR} oboe-build EXCLUDE_FROM_ALL)
+set(BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS_SAVED} CACHE INTERNAL "" FORCE)
 target_include_directories(${LIB_NAME} PRIVATE ${OBOE_DIR}/include)
 
 # Find Android NDK libraries.
