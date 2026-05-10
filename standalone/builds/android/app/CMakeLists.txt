@@ -122,6 +122,12 @@ add_subdirectory(${OBOE_DIR} oboe-build EXCLUDE_FROM_ALL)
 set(BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS_SAVED} CACHE INTERNAL "" FORCE)
 target_include_directories(${LIB_NAME} PRIVATE ${OBOE_DIR}/include)
 
+# Oboe's PolyphaseResampler{,Mono,Stereo}.cpp use assert() but rely on a
+# transitive include that NDK 26's libc++ no longer provides. Force-include
+# <cassert> for the whole oboe target so we don't have to modify vendored
+# Oboe sources.
+target_compile_options(oboe PRIVATE -include cassert)
+
 # Find Android NDK libraries.
 find_library(log-lib log)
 find_library(android-lib android)
