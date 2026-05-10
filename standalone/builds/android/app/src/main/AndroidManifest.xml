@@ -30,7 +30,7 @@
         <activity
             android:name="audio.spectra.synth.SpectraActivity"
             android:exported="true"
-            android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|uiMode"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|navigation|density|fontScale"
             android:launchMode="singleTask"
             android:resizeableActivity="true"
             android:theme="@style/Theme.Spectra.Fullscreen"

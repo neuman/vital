@@ -127,9 +127,17 @@ int DefaultLookAndFeel::getSliderPopupPlacement(Slider& slider) {
 }
 
 Font DefaultLookAndFeel::getPopupMenuFont() {
+#if JUCE_ANDROID
+  return Fonts::instance()->proportional_regular().withPointHeight(20.0f);
+#else
   return Fonts::instance()->proportional_regular().withPointHeight(14.0f);
+#endif
 }
 
 Font DefaultLookAndFeel::getSliderPopupFont(Slider& slider) {
+#if JUCE_ANDROID
+  return Fonts::instance()->proportional_regular().withPointHeight(20.0f);
+#else
   return Fonts::instance()->proportional_regular().withPointHeight(14.0f);
+#endif
 }
